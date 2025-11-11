@@ -316,21 +316,9 @@ Contributions are welcome! Here's how you can help:
 
 If you find FrameFusion useful, consider supporting its development!
 
-<div align="center">
-
-[![Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/advay254)
-
-**[Buy me a coffee ☕](https://ko-fi.com/advay254)**
+<a href="https://www.buymeacoffee.com/advay254" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
 Your support helps maintain and improve FrameFusion for everyone! 🙏
-
-</div>
-
----
-
-## 💖 Support
-
-<a href="https://www.buymeacoffee.com/advay254" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
 ---
 
