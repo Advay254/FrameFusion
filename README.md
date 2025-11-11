@@ -376,8 +376,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact & Links
 
-- **GitHub:** [FrameFusion Repository](https://github.com/yourusername/framefusion)
-- **Issues:** [Report a bug](https://github.com/yourusername/framefusion/issues)
+- **GitHub:** [FrameFusion Repository](https://github.com/Advay254/FrameFusion)
+- **Issues:** [Report a bug](https://github.com/Advay254/FrameFusion/issues)
 - **Ko-fi:** [Support the project](https://ko-fi.com/advay254)
 
 ---
