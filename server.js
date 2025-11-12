@@ -16,6 +16,14 @@ app.use(express.json());
 
 const upload = multer({ dest: '/tmp/' });
 
+// Video format presets
+const VIDEO_FORMATS = {
+  'portrait': { width: 1080, height: 1920 }, // TikTok, Reels, Shorts
+  'landscape': { width: 1920, height: 1080 }, // YouTube, regular video
+  'square': { width: 1080, height: 1080 },    // Instagram post
+  'story': { width: 1080, height: 1920 }      // Instagram story (same as portrait)
+};
+
 // Helper function to cleanup files
 const cleanup = (...files) => {
   files.forEach(file => {
@@ -71,7 +79,13 @@ const getFilePath = async (fileFromUpload, urlFromBody, fieldName) => {
   throw new Error(`No ${fieldName} provided (file or URL)`);
 };
 
-// 1. Image + Audio = Video (audio length) - FIXED
+// Helper function to get video format dimensions
+const getFormatDimensions = (format) => {
+  const formatLower = (format || 'landscape').toLowerCase();
+  return VIDEO_FORMATS[formatLower] || VIDEO_FORMATS.landscape;
+};
+
+// 1. Image + Audio = Video (audio length) - FIXED with format support
 app.post('/image-audio', upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'audio', maxCount: 1 }
@@ -92,6 +106,10 @@ app.post('/image-audio', upload.fields([
       'audio'
     );
 
+    // Get format dimensions
+    const format = req.body.format || 'landscape';
+    const dimensions = getFormatDimensions(format);
+
     ffmpeg()
       .input(imagePath)
       .inputOptions(['-loop 1'])
@@ -104,9 +122,13 @@ app.post('/image-audio', upload.fields([
         '-pix_fmt yuv420p',
         '-shortest',
         '-preset ultrafast',
-        '-vf scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2'
+        `-vf scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease,pad=${dimensions.width}:${dimensions.height}:(ow-iw)/2:(oh-ih)/2:black`,
+        '-r 25'
       ])
       .output(outputPath)
+      .on('start', (cmd) => {
+        console.log('FFmpeg command:', cmd);
+      })
       .on('end', () => {
         res.download(outputPath, 'output.mp4', () => {
           cleanup(imagePath, audioPath, outputPath);
@@ -125,7 +147,7 @@ app.post('/image-audio', upload.fields([
   }
 });
 
-// 2. Multiple Images = Slideshow Video - FIXED
+// 2. Multiple Images = Slideshow Video - FIXED with format support
 app.post('/slideshow', upload.array('images', 20), async (req, res) => {
   let imagePaths = [];
   const outputPath = `/tmp/slideshow-${Date.now()}.mp4`;
@@ -156,8 +178,10 @@ app.post('/slideshow', upload.array('images', 20), async (req, res) => {
     }
 
     const duration = parseFloat(req.body.duration) || 3;
+    const format = req.body.format || 'landscape';
+    const dimensions = getFormatDimensions(format);
     
-    // Create concat file list - FIXED: proper format
+    // Create concat file list
     const listContent = imagePaths.map(p => `file '${p}'\nduration ${duration}`).join('\n') + `\nfile '${imagePaths[imagePaths.length - 1]}'`;
     fs.writeFileSync(listPath, listContent);
 
@@ -169,7 +193,8 @@ app.post('/slideshow', upload.array('images', 20), async (req, res) => {
         '-pix_fmt yuv420p',
         '-c:v libx264',
         '-preset ultrafast',
-        '-vf scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2'
+        `-vf scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease,pad=${dimensions.width}:${dimensions.height}:(ow-iw)/2:(oh-ih)/2:black`,
+        '-r 25'
       ])
       .output(outputPath)
       .on('end', () => {
@@ -190,7 +215,7 @@ app.post('/slideshow', upload.array('images', 20), async (req, res) => {
   }
 });
 
-// 3. Video1 + Video2 = Concatenated Video - FIXED
+// 3. Video1 + Video2 = Concatenated Video - FIXED with format support
 app.post('/concat-videos', upload.fields([
   { name: 'video1', maxCount: 1 },
   { name: 'video2', maxCount: 1 }
@@ -214,7 +239,10 @@ app.post('/concat-videos', upload.fields([
       'video2'
     );
 
-    // Re-encode both videos to same format for reliable concatenation
+    const format = req.body.format || 'landscape';
+    const dimensions = getFormatDimensions(format);
+
+    // Re-encode both videos to same format
     const encodeVideo = (input, output) => {
       return new Promise((resolve, reject) => {
         ffmpeg(input)
@@ -223,7 +251,9 @@ app.post('/concat-videos', upload.fields([
             '-c:a aac',
             '-preset ultrafast',
             '-pix_fmt yuv420p',
-            '-ar 44100'
+            '-ar 44100',
+            `-vf scale=${dimensions.width}:${dimensions.height}:force_original_aspect_ratio=decrease,pad=${dimensions.width}:${dimensions.height}:(ow-iw)/2:(oh-ih)/2:black`,
+            '-r 25'
           ])
           .output(output)
           .on('end', resolve)
@@ -300,7 +330,7 @@ app.post('/video-audio', upload.fields([
         '-shortest'
       ]);
     } else if (mode === 'background') {
-      // Mix audio (background music) - FIXED: proper filter
+      // Mix audio (background music)
       command.complexFilter([
         '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[aout]'
       ])
@@ -339,22 +369,27 @@ app.post('/video-audio', upload.fields([
 app.get('/', (req, res) => {
   res.json({
     status: 'FFmpeg Service Running',
-    version: '1.1.0',
+    version: '1.2.0',
     features: {
       fileUpload: true,
-      urlSupport: true
+      urlSupport: true,
+      formatOptions: Object.keys(VIDEO_FORMATS)
+    },
+    formats: {
+      portrait: '1080x1920 (TikTok, Reels, Shorts)',
+      landscape: '1920x1080 (YouTube, default)',
+      square: '1080x1080 (Instagram Post)',
+      story: '1080x1920 (Instagram Story)'
     },
     endpoints: {
-      '/image-audio': 'POST - Combine image and audio into video (video length = audio length)',
-      '/slideshow': 'POST - Create slideshow from multiple images',
-      '/concat-videos': 'POST - Concatenate two videos (preserves audio)',
+      '/image-audio': 'POST - Combine image and audio into video (video length = audio length). Params: format (optional)',
+      '/slideshow': 'POST - Create slideshow from multiple images. Params: format (optional)',
+      '/concat-videos': 'POST - Concatenate two videos (preserves audio). Params: format (optional)',
       '/video-audio': 'POST - Add audio to video - replace or background mix'
     },
-    notes: {
-      'image-audio': 'Video duration matches audio duration exactly',
-      'concat-videos': 'Videos are re-encoded to same format for reliable concatenation',
-      'video-audio-replace': 'Removes original audio, adds new audio',
-      'video-audio-background': 'Mixes new audio with original audio'
+    usage: {
+      format: 'Add "format" parameter with values: portrait, landscape, square, or story',
+      example: 'format=portrait for TikTok/Reels, format=landscape for YouTube'
     }
   });
 });
@@ -364,4 +399,5 @@ app.listen(PORT, () => {
   console.log(`🎬 FrameFusion API running on port ${PORT}`);
   console.log(`📡 API available at http://localhost:${PORT}`);
   console.log(`🌐 Supports both file uploads and URL inputs`);
+  console.log(`📐 Formats: portrait (1080x1920), landscape (1920x1080), square (1080x1080)`);
 });
